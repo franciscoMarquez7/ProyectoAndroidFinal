@@ -26,7 +26,7 @@ import com.example.proyecto_francisco_marquez.ui.gradientBackground
 import kotlinx.coroutines.*
 
 @Composable
-fun CharacterDetailScreen(characterId: String?, navController: NavHostController) {
+fun CharacterDetailScreen(characterId: String, navController: NavHostController) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 

@@ -2,53 +2,56 @@ package com.example.proyecto_francisco_marquez.ui.screen
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.proyecto_francisco_marquez.R
-import com.example.proyecto_francisco_marquez.data.FirestoreService
 import com.example.proyecto_francisco_marquez.ui.TitleStyle
-import com.google.firebase.firestore.FirebaseFirestore
+import com.example.proyecto_francisco_marquez.data.FirestoreService
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import androidx.compose.foundation.shape.RoundedCornerShape
-import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModel
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.proyecto_francisco_marquez.model.EpisodeModel
+import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModel
+import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModificarEpisodioScreen(
-    navController: NavHostController,
-    episodeId: String,
-    viewModel: DatabaseViewModel = viewModel()
-) {
-    val firestoreService = FirestoreService()
-    val scope = rememberCoroutineScope()
-    val db = FirebaseFirestore.getInstance()
+fun ModificarEpisodioScreen(navController: NavHostController, episodeId: String) {
+    val viewModel: DatabaseViewModel = viewModel(
+        factory = DatabaseViewModelFactory(FirestoreService())
+    )
 
     var name by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }
     var duration by remember { mutableStateOf("") }
     var imageUrl by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(true) }
 
-    // Cargar datos del episodio
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(episodeId) {
         try {
-            val document = db.collection("episodios").document(episodeId).get().await()
-            name = document.getString("name") ?: ""
-            date = document.getString("date") ?: ""
-            duration = document.getString("duration") ?: ""
-            imageUrl = document.getString("imageUrl") ?: ""
+            isLoading = true
+            val episode = viewModel.getEpisodeById(episodeId)
+            episode?.let {
+                name = it.name
+                date = it.date
+                duration = it.duration
+                imageUrl = it.imageUrl
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            println("Error cargando episodio: ${e.message}")
+        } finally {
+            isLoading = false
         }
     }
 
@@ -62,115 +65,137 @@ fun ModificarEpisodioScreen(
             alpha = 0.3f
         )
 
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = Color.Transparent,
-            topBar = {
-                TopAppBar(
-                    title = { Text("Modificar Episodio", style = TitleStyle.copy(color = Color.Black)) },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Volver Atrás", tint = Color.Black)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.White.copy(alpha = 0.7f)
-                    )
-                )
-            }
-        ) { paddingValues ->
-            Column(
+        if (isLoading) {
+            CircularProgressIndicator(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Card(
+                    .size(50.dp)
+                    .align(Alignment.Center)
+            )
+        } else {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = Color.Transparent,
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Modificar Episodio", style = TitleStyle.copy(color = Color.Black)) },
+                        navigationIcon = {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.Black)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.White.copy(alpha = 0.7f)
+                        )
+                    )
+                }
+            ) { paddingValues ->
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.White.copy(alpha = 0.8f)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                            .padding(8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text("Nombre del episodio") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6200EE),
-                                unfocusedBorderColor = Color.Gray
-                            )
-                        )
-
-                        OutlinedTextField(
-                            value = date,
-                            onValueChange = { date = it },
-                            label = { Text("Fecha de emisión") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6200EE),
-                                unfocusedBorderColor = Color.Gray
-                            )
-                        )
-
-                        OutlinedTextField(
-                            value = duration,
-                            onValueChange = { duration = it },
-                            label = { Text("Duración") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6200EE),
-                                unfocusedBorderColor = Color.Gray
-                            )
-                        )
-
-                        OutlinedTextField(
-                            value = imageUrl,
-                            onValueChange = { imageUrl = it },
-                            label = { Text("URL de la imagen") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6200EE),
-                                unfocusedBorderColor = Color.Gray
-                            )
-                        )
-
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    val updatedData = mapOf(
-                                        "name" to name,
-                                        "date" to date,
-                                        "duration" to duration,
-                                        "imageUrl" to imageUrl
-                                    )
-                                    val success = firestoreService.updateEpisode(episodeId, updatedData)
-                                    if (success) {
-                                        navController.popBackStack()
-                                    }
-                                }
-                            },
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(56.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EE)),
-                            shape = RoundedCornerShape(12.dp)
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Text("Guardar Cambios", color = Color.White)
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = { name = it },
+                                label = { Text("Nombre del episodio") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF6200EE),
+                                    unfocusedBorderColor = Color.Gray
+                                )
+                            )
+
+                            OutlinedTextField(
+                                value = date,
+                                onValueChange = { date = it },
+                                label = { Text("Fecha de emisión") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF6200EE),
+                                    unfocusedBorderColor = Color.Gray
+                                )
+                            )
+
+                            OutlinedTextField(
+                                value = duration,
+                                onValueChange = { duration = it },
+                                label = { Text("Número de episodio") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF6200EE),
+                                    unfocusedBorderColor = Color.Gray
+                                )
+                            )
+
+                            OutlinedTextField(
+                                value = imageUrl,
+                                onValueChange = { imageUrl = it },
+                                label = { Text("URL de la imagen") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF6200EE),
+                                    unfocusedBorderColor = Color.Gray
+                                )
+                            )
+
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            isLoading = true
+                                            val updatedEpisode = EpisodeModel(
+                                                id = episodeId,
+                                                name = name,
+                                                date = date,
+                                                duration = duration,
+                                                imageUrl = imageUrl
+                                            )
+                                            val success = viewModel.updateEpisode(updatedEpisode)
+                                            if (success) {
+                                                navController.popBackStack()
+                                            }
+                                        } finally {
+                                            isLoading = false
+                                        }
+                                    }
+                                },
+                                enabled = !isLoading,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EE))
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        color = Color.White
+                                    )
+                                } else {
+                                    Text("Guardar Cambios", color = Color.White)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
-} 
+}

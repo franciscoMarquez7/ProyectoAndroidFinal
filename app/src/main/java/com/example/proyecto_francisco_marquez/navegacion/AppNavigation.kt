@@ -1,5 +1,6 @@
 package com.example.proyecto_francisco_marquez.navegacion
 
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -9,9 +10,8 @@ import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.proyecto_francisco_marquez.ui.screen.*
 import com.example.proyecto_francisco_marquez.viewmodel.AuthViewModel
-import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModel
-import com.example.proyecto_francisco_marquez.viewmodel.SharedViewModel
-import com.example.proyecto_francisco_marquez.viewmodel.CharacterViewModel
+import com.example.proyecto_francisco_marquez.ui.screen.FilterScreen
+
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
@@ -21,38 +21,56 @@ fun AppNavigation(navController: NavHostController) {
         navController = navController,
         startDestination = "splash"
     ) {
-        composable("splash") { 
+        // Ruta de inicio
+        composable("splash") {
             SplashScreen(
                 navController = navController,
                 authViewModel = authViewModel
-            ) 
+            )
         }
-        
-        composable("login") { 
+
+        // Rutas de autenticación
+        composable(
+            route = "login",
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left) },
+            exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right) },
+            popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right) },
+            popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left) }
+        ) {
             LoginScreen(
                 navController = navController,
                 authViewModel = authViewModel
-            ) 
+            )
         }
-        
-        composable("register") {
+
+        composable(
+            route = "register",
+            popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right) },
+            popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left) }
+        ) {
             RegisterScreen(
                 navController = navController,
                 authViewModel = authViewModel
             )
         }
-        
+
+        // Rutas principales de la app (requieren autenticación)
+        composable(
+            route = "filter",
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left) },
+            exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right) }
+        ) {
+            FilterScreen(navController)
+        }
+
+
         composable("forgotPassword") {
             ForgotPasswordScreen(
                 navController = navController,
                 authViewModel = authViewModel
             )
         }
-        
-        composable("filter") { 
-            FilterScreen(navController) 
-        }
-        
+
         composable("characterScreen/{status}") { backStackEntry ->
             val status = backStackEntry.arguments?.getString("status")
             CharacterScreen(
@@ -60,42 +78,54 @@ fun AppNavigation(navController: NavHostController) {
                 filter = status ?: "all"
             )
         }
-        
-        composable("databaseScreen") { 
-            DatabaseScreen(navController) 
+        composable("characterDetail/{characterId}") { backStackEntry ->
+            val characterId = backStackEntry.arguments?.getString("characterId") ?: ""
+            CharacterDetailScreen(characterId, navController)
         }
-        
-        composable("databasePersonajeScreen") { 
-            DatabaseScreenPersonaje(navController = navController) 
+        composable("databaseScreen") {
+            DatabaseScreen(navController)
         }
-        
+
+        composable("databasePersonajeScreen") {
+            DatabaseScreenPersonaje(navController)
+        }
+
         composable("databaseEpisodioScreen") {
-            DatabaseScreenEpisodio(navController, viewModel())
+            DatabaseScreenEpisodio(navController)
         }
-        
+
+        composable("agregarPersonajeScreen") {
+            AgregarPersonajeScreen(navController)
+        }
+
         composable("agregarEpisodioScreen") {
-            AgregarEpisodioScreen(navController, viewModel())
+            AgregarEpisodioScreen(navController)
         }
-        
+
+        composable(
+            "modificarPersonajeScreen/{characterId}",
+            arguments = listOf(
+                navArgument("characterId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val characterId = backStackEntry.arguments?.getString("characterId") ?: return@composable
+            ModificarPersonajeScreen(
+                navController = navController,
+                characterId = characterId
+            )
+        }
+
         composable(
             "modificarEpisodioScreen/{episodeId}",
-            arguments = listOf(navArgument("episodeId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val episodeId = backStackEntry.arguments?.getString("episodeId") ?: ""
-            ModificarEpisodioScreen(navController, episodeId, viewModel())
-        }
-        
-        composable(
-            route = "verPersonajesEpisodio/{episodeId}",
             arguments = listOf(
                 navArgument("episodeId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
             val episodeId = backStackEntry.arguments?.getString("episodeId") ?: return@composable
-            VerPersonajesEpisodioScreen(
+            ModificarEpisodioScreen(
                 navController = navController,
                 episodeId = episodeId
             )
         }
     }
-} 
+}

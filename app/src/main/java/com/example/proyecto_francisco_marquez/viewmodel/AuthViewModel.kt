@@ -1,6 +1,7 @@
 package com.example.proyecto_francisco_marquez.viewmodel
 
 import android.content.Intent
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
@@ -24,11 +25,12 @@ class AuthViewModel : ViewModel() {
     fun signIn(email: String, password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                auth.signInWithEmailAndPassword(email, password).await()
-                _userState.value = auth.currentUser
+                val result = auth.signInWithEmailAndPassword(email, password).await()
+                _userState.value = result.user
                 onSuccess()
             } catch (e: Exception) {
-                onError(e.message ?: "Error al iniciar sesión")
+                Log.e("AuthViewModel", "Error de autenticación: ${e.message}")
+                onError(e.message ?: "Error de autenticación")
             }
         }
     }
@@ -55,7 +57,6 @@ class AuthViewModel : ViewModel() {
             }
         }
     }
-
     fun signOut() {
         auth.signOut()
         _userState.value = null

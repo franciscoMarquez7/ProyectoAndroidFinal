@@ -3,11 +3,16 @@ package com.example.proyecto_francisco_marquez.model
 data class EpisodeModel(
     val id: String = "",
     val name: String = "",
-    val airDate: String = "",
-    val episode: String = "",
-    val characters: List<String> = emptyList()
+    val date: String = "",
+    val duration: String = "",
+    val imageUrl: String = ""
 ) {
-    fun isValid(): Boolean {
-        return name.isNotBlank() && airDate.isNotBlank() && episode.isNotBlank()
+    fun toMap(): Map<String, Any> {
+        return mapOf(
+            "name" to name,
+            "date" to date,
+            "duration" to duration,
+            "imageUrl" to imageUrl
+        )
     }
-} 
+}

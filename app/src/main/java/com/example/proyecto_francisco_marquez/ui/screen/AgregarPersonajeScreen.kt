@@ -10,9 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.proyecto_francisco_marquez.R
 import com.example.proyecto_francisco_marquez.ui.TitleStyle
@@ -20,18 +18,24 @@ import com.example.proyecto_francisco_marquez.data.FirestoreService
 import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.proyecto_francisco_marquez.model.CharacterModel
+import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModel
+import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgregarPersonajeScreen(navController: NavHostController) {
+    val viewModel: DatabaseViewModel = viewModel(
+        factory = DatabaseViewModelFactory(FirestoreService())
+    )
     var name by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
     var species by remember { mutableStateOf("") }
     var episodeId by remember { mutableStateOf("") }
-    var imageUrl by remember { mutableStateOf("") }
+    var imagenUrl by remember { mutableStateOf("") }
 
     val scope = rememberCoroutineScope()
-    val firestoreService = FirestoreService()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Imagen de fondo con efecto de oscurecimiento
@@ -127,8 +131,8 @@ fun AgregarPersonajeScreen(navController: NavHostController) {
                         )
 
                         OutlinedTextField(
-                            value = imageUrl,
-                            onValueChange = { imageUrl = it },
+                            value = imagenUrl,
+                            onValueChange = { imagenUrl = it },
                             label = { Text("URL de la imagen") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -140,16 +144,20 @@ fun AgregarPersonajeScreen(navController: NavHostController) {
                         Button(
                             onClick = {
                                 scope.launch {
-                                    val character = mapOf(
-                                        "name" to name,
-                                        "status" to status,
-                                        "species" to species,
-                                        "episode_id" to episodeId,
-                                        "imagenUrl" to imageUrl
+                                    val character = CharacterModel(
+                                        name = name,
+                                        status = status,
+                                        species = species,
+                                        episode_id = episodeId,
+                                        imagenUrl = imagenUrl
                                     )
-                                    val success = firestoreService.addCharacter(character)
+
+                                    val success =
+                                        viewModel.addCharacter(character) // Ahora devuelve Boolean
                                     if (success) {
                                         navController.popBackStack()
+                                    } else {
+                                        println("Error al agregar personaje")
                                     }
                                 }
                             },

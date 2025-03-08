@@ -23,26 +23,45 @@ class FirestoreService {
         return true
     }
 
-    private suspend fun verifyAuthentication(): Boolean {
-        val currentUser = auth.currentUser ?: return false
-        try {
-            // Forzar actualización del token
-            currentUser.getIdToken(true).await()
-            return true
-        } catch (e: Exception) {
-            Log.e("FirestoreService", "Error verificando autenticación", e)
-            return false
-        }
-    }
-
     // Agregar un personaje
-    suspend fun addCharacter(character: Map<String, Any>): Boolean {
+    suspend fun addCharacter(characterId: Map<String, Any>): Boolean {
         return try {
-            charactersCollection.add(character).await() // Usamos .add() para agregar sin un ID especificado
+            charactersCollection.add(characterId)
+                .await() // Usamos .add() para agregar sin un ID especificado
             true
         } catch (e: Exception) {
             Log.e("FirestoreService", "Error agregando personaje: ${e.message}")
             false
+        }
+    }
+
+    suspend fun getCharacterById(characterId: String): CharacterModel? {
+        return try {
+            val document = charactersCollection.document(characterId).get().await()
+            document.toObject(CharacterModel::class.java)?.copy(id = document.id)
+        } catch (e: Exception) {
+            Log.e("FirestoreService", "Error obteniendo el personaje: ${e.message}")
+            null
+        }
+    }
+    suspend fun getEpisodeById(episodeId: String): EpisodeModel? {
+        return try {
+            val document = episodesCollection.document(episodeId).get().await()
+            val data = document.data
+            if (data != null) {
+                EpisodeModel(
+                    id = document.id,
+                    name = data["name"] as? String ?: "",
+                    date = data["date"] as? String ?: "",
+                    duration = data["duration"] as? String ?: "",
+                    imageUrl = data["imageUrl"] as? String ?: ""
+                )
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("FirestoreService", "Error obteniendo el episodio: ${e.message}")
+            null
         }
     }
 
@@ -53,6 +72,15 @@ class FirestoreService {
             true
         } catch (e: Exception) {
             Log.e("FirestoreService", "Error actualizando personaje: ${e.message}")
+            false
+        }
+    }
+    suspend fun updateEpisode(episodeId: String, updatedData: Map<String, Any>): Boolean {
+        return try {
+            episodesCollection.document(episodeId).update(updatedData).await()
+            true
+        } catch (e: Exception) {
+            Log.e("FirestoreService", "Error actualizando episodio: ${e.message}")
             false
         }
     }
@@ -71,18 +99,23 @@ class FirestoreService {
 
     suspend fun getCharacters(): UiState<List<CharacterModel>> {
         if (!isUserAuthenticated()) return UiState.Error("Usuario no autenticado")
-        
+
         return try {
             val snapshot = charactersCollection.get().await()
-            val characters = snapshot.documents.map { doc ->
-                CharacterModel(
-                    id = doc.id,
-                    name = doc.getString("name") ?: "",
-                    status = doc.getString("status") ?: "",
-                    species = doc.getString("species") ?: "",
-                    imageUrl = doc.getString("imageUrl") ?: "",
-                    episode_id = doc.getString("episode_id") ?: ""
-                )
+            val characters = snapshot.documents.mapNotNull { doc ->
+                try {
+                    CharacterModel(
+                        id = doc.id,
+                        name = doc.getString("name") ?: "",
+                        status = doc.getString("status") ?: "",
+                        species = doc.getString("species") ?: "",
+                        imagenUrl = doc.getString("imagenUrl") ?: "",
+                        episode_id = doc.getString("episode_id") ?: ""
+                    )
+                } catch (e: Exception) {
+                    Log.e("FirestoreService", "Error procesando documento Firestore: ${doc.id}")
+                    null
+                }
             }
             UiState.Success(characters)
         } catch (e: Exception) {
@@ -91,70 +124,34 @@ class FirestoreService {
         }
     }
 
-    suspend fun addEpisode(episode: Map<String, Any>): Boolean {
+    suspend fun addEpisode(episodeId: Map<String, Any>): Boolean {
         return try {
-            episodesCollection.add(episode).await()
+            episodesCollection.add(episodeId).await()
             true
         } catch (e: Exception) {
             false
         }
     }
 
-    suspend fun updateEpisode(episodeId: String, episode: Map<String, Any>): Boolean {
-        return try {
-            episodesCollection.document(episodeId).update(episode).await()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    suspend fun getEpisodeById(episodeId: String): UiState<EpisodeModel> {
-        return try {
-            val doc = episodesCollection.document(episodeId).get().await()
-            if (doc.exists()) {
-                val episode = doc.toObject(EpisodeModel::class.java)
-                if (episode != null) {
-                    UiState.Success(episode)
-                } else {
-                    UiState.Error("Error al convertir el documento")
-                }
-            } else {
-                UiState.Error("Episodio no encontrado")
-            }
-        } catch (e: Exception) {
-            UiState.Error(e.message ?: "Error desconocido")
-        }
-    }
 
     suspend fun getEpisodes(): UiState<List<EpisodeModel>> {
         return try {
             val snapshot = episodesCollection.get().await()
-            val episodes = snapshot.documents.mapNotNull { 
-                it.toObject(EpisodeModel::class.java) 
+            val episodes = snapshot.documents.mapNotNull { doc ->
+                try {
+                    EpisodeModel(
+                        id = doc.id,
+                        name = doc.getString("name") ?: "",
+                        date = doc.getString("date") ?: "",
+                        duration = doc.getString("duration") ?: "",
+                        imageUrl = doc.getString("imageUrl") ?: ""
+                    )
+                } catch (e: Exception) {
+                    Log.e("FirestoreService", "Error procesando documento Firestore: ${doc.id}")
+                    null
+                }
             }
             UiState.Success(episodes)
-        } catch (e: Exception) {
-            UiState.Error(e.message ?: "Error desconocido")
-        }
-    }
-
-    suspend fun getCharacterById(characterId: String): UiState<CharacterModel> {
-        return try {
-            val doc = charactersCollection.document(characterId).get().await()
-            if (doc.exists()) {
-                val character = CharacterModel(
-                    id = doc.id,
-                    name = doc.getString("name") ?: "",
-                    status = doc.getString("status") ?: "",
-                    species = doc.getString("species") ?: "",
-                    imageUrl = doc.getString("imageUrl") ?: "",
-                    episode_id = doc.getString("episode_id") ?: ""
-                )
-                UiState.Success(character)
-            } else {
-                UiState.Error("Personaje no encontrado")
-            }
         } catch (e: Exception) {
             UiState.Error(e.message ?: "Error desconocido")
         }
@@ -166,38 +163,18 @@ class FirestoreService {
                 .whereEqualTo("episode_id", episodeId)
                 .get()
                 .await()
-            
+
             val characters = snapshot.documents.mapNotNull { doc ->
                 CharacterModel(
                     id = doc.id,
                     name = doc.getString("name") ?: "",
                     status = doc.getString("status") ?: "",
                     species = doc.getString("species") ?: "",
-                    imageUrl = doc.getString("imageUrl") ?: "",
+                    imagenUrl = doc.getString("imagenUrl") ?: "",
                     episode_id = doc.getString("episode_id") ?: ""
                 )
             }
             UiState.Success(characters)
-        } catch (e: Exception) {
-            UiState.Error(e.message ?: "Error desconocido")
-        }
-    }
-
-    suspend fun addCharacterToEpisode(characterId: String, episodeId: String): UiState<Boolean> {
-        return try {
-            val characterUpdate = mapOf("episode_id" to episodeId)
-            charactersCollection.document(characterId).update(characterUpdate).await()
-            UiState.Success(true)
-        } catch (e: Exception) {
-            UiState.Error(e.message ?: "Error desconocido")
-        }
-    }
-
-    suspend fun removeCharacterFromEpisode(characterId: String, episodeId: String): UiState<Boolean> {
-        return try {
-            val characterUpdate = mapOf("episode_id" to "")
-            charactersCollection.document(characterId).update(characterUpdate).await()
-            UiState.Success(true)
         } catch (e: Exception) {
             UiState.Error(e.message ?: "Error desconocido")
         }

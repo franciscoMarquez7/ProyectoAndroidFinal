@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "262603989783-sc55glfa3bpqrj61aambbnq0o0953ah9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.proyecto_francisco_marquez",
+            "certificate_hash": "ac5c536b704752065de05f36d6fe326523405943"
+          }
+        },
+        {
           "client_id": "262603989783-v701ebi3au08lifp0m457eao9l7rqi3t.apps.googleusercontent.com",
           "client_type": 3
         }

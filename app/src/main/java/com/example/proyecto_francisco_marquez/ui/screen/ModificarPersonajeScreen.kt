@@ -1,7 +1,6 @@
 package com.example.proyecto_francisco_marquez.ui.screen
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -10,47 +9,44 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.example.proyecto_francisco_marquez.R
-import com.example.proyecto_francisco_marquez.data.FirestoreService
 import com.example.proyecto_francisco_marquez.ui.TitleStyle
-import com.google.firebase.firestore.FirebaseFirestore
+import com.example.proyecto_francisco_marquez.data.FirestoreService
 import kotlinx.coroutines.launch
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.proyecto_francisco_marquez.model.CharacterModel
+import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModel
+import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModificarPersonajeScreen(navController: NavHostController, documentId: String) {
-    val db = FirebaseFirestore.getInstance()
-    val firestoreService = FirestoreService()
+fun ModificarPersonajeScreen(navController: NavHostController, characterId: String) {
+    val viewModel: DatabaseViewModel = viewModel(
+        factory = DatabaseViewModelFactory(FirestoreService())
+    )
+
+    var name by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("") }
+    var species by remember { mutableStateOf("") }
+    var episodeId by remember { mutableStateOf("") }
+    var imagenUrl by remember { mutableStateOf("") }
+
     val scope = rememberCoroutineScope()
 
-    var newName by remember { mutableStateOf("") }
-    var newStatus by remember { mutableStateOf("") }
-    var newSpecies by remember { mutableStateOf("") }
-    var newEpisodeId by remember { mutableStateOf("") }
-    var newImageUrl by remember { mutableStateOf("") }
-
-    LaunchedEffect(documentId) {
-        db.collection("personajes").document(documentId).get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
-                    newName = document.getString("name") ?: ""
-                    newStatus = document.getString("status") ?: ""
-                    newSpecies = document.getString("species") ?: ""
-                    newEpisodeId = document.getString("episode_id") ?: ""
-                    newImageUrl = document.getString("imagenUrl") ?: ""
-                }
-            }
-            .addOnFailureListener { exception ->
-                exception.printStackTrace()
-            }
+    LaunchedEffect(characterId) {
+        val character = viewModel.getCharacterById(characterId)
+        character?.let {
+            name = it.name
+            status = it.status
+            species = it.species
+            episodeId = it.episode_id
+            imagenUrl = it.imagenUrl
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -71,7 +67,7 @@ fun ModificarPersonajeScreen(navController: NavHostController, documentId: Strin
                     title = { Text("Modificar Personaje", style = TitleStyle.copy(color = Color.Black)) },
                     navigationIcon = {
                         IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Volver", tint = Color.Black)
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.Black)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -100,22 +96,11 @@ fun ModificarPersonajeScreen(navController: NavHostController, documentId: Strin
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Imagen del personaje
-                        AsyncImage(
-                            model = newImageUrl.ifEmpty { "https://via.placeholder.com/150" },
-                            contentDescription = "Imagen del personaje",
-                            modifier = Modifier
-                                .size(150.dp)
-                                .padding(8.dp),
-                            contentScale = ContentScale.Crop
-                        )
-
                         OutlinedTextField(
-                            value = newName,
-                            onValueChange = { newName = it },
+                            value = name,
+                            onValueChange = { name = it },
                             label = { Text("Nombre") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -125,8 +110,8 @@ fun ModificarPersonajeScreen(navController: NavHostController, documentId: Strin
                         )
 
                         OutlinedTextField(
-                            value = newStatus,
-                            onValueChange = { newStatus = it },
+                            value = status,
+                            onValueChange = { status = it },
                             label = { Text("Estado") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -136,8 +121,8 @@ fun ModificarPersonajeScreen(navController: NavHostController, documentId: Strin
                         )
 
                         OutlinedTextField(
-                            value = newSpecies,
-                            onValueChange = { newSpecies = it },
+                            value = species,
+                            onValueChange = { species = it },
                             label = { Text("Especie") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -147,8 +132,8 @@ fun ModificarPersonajeScreen(navController: NavHostController, documentId: Strin
                         )
 
                         OutlinedTextField(
-                            value = newEpisodeId,
-                            onValueChange = { newEpisodeId = it },
+                            value = episodeId,
+                            onValueChange = { episodeId = it },
                             label = { Text("ID del episodio") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -158,8 +143,8 @@ fun ModificarPersonajeScreen(navController: NavHostController, documentId: Strin
                         )
 
                         OutlinedTextField(
-                            value = newImageUrl,
-                            onValueChange = { newImageUrl = it },
+                            value = imagenUrl,
+                            onValueChange = { imagenUrl = it },
                             label = { Text("URL de la imagen") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -171,20 +156,20 @@ fun ModificarPersonajeScreen(navController: NavHostController, documentId: Strin
                         Button(
                             onClick = {
                                 scope.launch {
-                                    val updatedData = mutableMapOf<String, Any>()
-                                    if (newName.isNotEmpty()) updatedData["name"] = newName
-                                    if (newStatus.isNotEmpty()) updatedData["status"] = newStatus
-                                    if (newSpecies.isNotEmpty()) updatedData["species"] = newSpecies
-                                    if (newEpisodeId.isNotEmpty()) updatedData["episode_id"] = newEpisodeId
-                                    if (newImageUrl.isNotEmpty()) updatedData["imagenUrl"] = newImageUrl
+                                    val updatedCharacter = CharacterModel(
+                                        id = characterId,
+                                        name = name,
+                                        status = status,
+                                        species = species,
+                                        episode_id = episodeId,
+                                        imagenUrl = imagenUrl
+                                    )
 
-                                    if (updatedData.isNotEmpty()) {
-                                        try {
-                                            firestoreService.updateCharacter(documentId, updatedData)
-                                            navController.popBackStack()
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
+                                    val success = viewModel.updateCharacter(updatedCharacter)
+                                    if (success) {
+                                        navController.popBackStack()
+                                    } else {
+                                        println("Error al modificar personaje")
                                     }
                                 }
                             },

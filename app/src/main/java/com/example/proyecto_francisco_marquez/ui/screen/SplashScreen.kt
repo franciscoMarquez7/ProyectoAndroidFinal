@@ -37,11 +37,20 @@ fun SplashScreen(
         animationSpec = tween(durationMillis = 1000)
     )
 
+    // Observar el estado de autenticación
+    val userState by authViewModel.userState.collectAsState()
+
     LaunchedEffect(key1 = true) {
         startAnimation = true
         delay(2000)
-        navController.navigate("login") {
-            popUpTo("splash") { inclusive = true }
+        if (userState != null) {
+            navController.navigate("filter") {
+                popUpTo("splash") { inclusive = true }
+            }
+        } else {
+            navController.navigate("login") {
+                popUpTo("splash") { inclusive = true }
+            }
         }
     }
 

@@ -1,319 +1,188 @@
 package com.example.proyecto_francisco_marquez.viewmodel
 
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.proyecto_francisco_marquez.data.FirestoreService
 import com.example.proyecto_francisco_marquez.model.CharacterModel
+import com.example.proyecto_francisco_marquez.model.EpisodeModel
 import com.example.proyecto_francisco_marquez.model.UiState
-import com.google.firebase.crashlytics.FirebaseCrashlytics
-import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import java.util.concurrent.ConcurrentHashMap
-import com.example.proyecto_francisco_marquez.data.EpisodesRepository
 
-sealed class DatabaseOperation<T> {
-    data class Add<T>(val data: T) : DatabaseOperation<T>()
-    data class Update<T>(val id: String, val data: T) : DatabaseOperation<T>()
-    data class Delete<T>(val id: String) : DatabaseOperation<T>()
-    data class Get<T>(val id: String) : DatabaseOperation<T>()
-    class GetAll<T> : DatabaseOperation<T>()
-}
+class DatabaseViewModel(private val firestoreService: FirestoreService) : ViewModel() {
 
-sealed class DatabaseEvent {
-    object None : DatabaseEvent()
-    object Loading : DatabaseEvent()
-    object Success : DatabaseEvent()
-    data class Error(val message: String) : DatabaseEvent()
-}
+    private val _characters = MutableLiveData<List<CharacterModel>>()
+    val characters: LiveData<List<CharacterModel>> get() = _characters
 
-data class DatabaseState(
-    val isLoading: Boolean = false,
-    val lastOperation: String = "",
-    val lastUpdated: Long = 0L,
-    val errorMessage: String? = null
-)
+    private val _episodes = MutableLiveData<List<EpisodeModel>>()
+    val episodes: LiveData<List<EpisodeModel>> get() = _episodes
 
-class DatabaseViewModel : ViewModel() {
-    private val firestoreService = FirestoreService()
-    private val episodesRepository = EpisodesRepository(firestoreService)
-    private val crashlytics = FirebaseCrashlytics.getInstance()
+    private val _syncState = MutableLiveData<SyncState>()
+    val syncState: LiveData<SyncState> get() = _syncState
 
-    private val _databaseState = MutableStateFlow(DatabaseState())
-    val databaseState: StateFlow<DatabaseState> = _databaseState.asStateFlow()
+    private val _isLoading = MutableLiveData<Boolean>()
+    val isLoading: LiveData<Boolean> get() = _isLoading
 
-    private val _databaseEvent = MutableSharedFlow<DatabaseEvent>()
-    val databaseEvent = _databaseEvent.asSharedFlow()
-
-    // Cache para operaciones de base de datos
-    private val operationCache = ConcurrentHashMap<String, Any>()
-    private val operationTimestamps = ConcurrentHashMap<String, Long>()
-    private val cacheValidityDuration = 5 * 60 * 1000L // 5 minutos
-    private var currentJob: Job? = null
-
-    private val _uiState = MutableStateFlow<UiState<Any>>(UiState.Empty)
-    val uiState: StateFlow<UiState<Any>> = _uiState.asStateFlow()
-
-    init {
-        setupPeriodicCleanup()
+    sealed class SyncState {
+        data class Success(val message: String) : SyncState()
+        data class Error(val exception: Throwable) : SyncState()
     }
 
-    private fun setupPeriodicCleanup() {
+    suspend fun addCharacter(character: CharacterModel): Boolean {
+        return try {
+            _isLoading.value = true
+            firestoreService.addCharacter(character.toMap()) // Usa el FirestoreService
+            _syncState.value = SyncState.Success("Personaje agregado")
+            getCharacters() // Recargar lista
+            _isLoading.value = false
+            true // Si todo funciona, devuelve true
+        } catch (e: Exception) {
+            _syncState.value = SyncState.Error(e)
+            _isLoading.value = false
+            false // Si hay un error, devuelve false
+        }
+    }
+
+
+    fun getCharacters() {
+        _isLoading.value = true
         viewModelScope.launch {
-            while (true) {
-                delay(300_000) // Limpiar cada 5 minutos
-                cleanupStaleData()
-            }
-        }
-    }
-
-    private fun cleanupStaleData() {
-        val currentTime = System.currentTimeMillis()
-        operationTimestamps.entries.removeIf { (key, timestamp) ->
-            val isStale = currentTime - timestamp > cacheValidityDuration
-            if (isStale) operationCache.remove(key)
-            isStale
-        }
-    }
-
-    private suspend fun <T> executeOperation(
-        operation: DatabaseOperation<T>,
-        operationName: String,
-        action: suspend () -> UiState<T>
-    ) {
-        currentJob?.cancel()
-        currentJob = viewModelScope.launch {
             try {
-                _databaseState.value = _databaseState.value.copy(
-                    isLoading = true,
-                    lastOperation = operationName,
-                    errorMessage = null
-                )
-                _databaseEvent.emit(DatabaseEvent.Loading)
-
-                val cacheKey = "${operationName}_${System.currentTimeMillis()}"
-                val result = action()
-
-                when (result) {
-                    is UiState.Success -> {
-                        operationCache[cacheKey] = result.data as Any
-                        operationTimestamps[cacheKey] = System.currentTimeMillis()
-                        _databaseEvent.emit(DatabaseEvent.Success)
+                val characterList = firestoreService.getCharacters()
+                if (characterList is UiState.Success) {
+                    _characters.value = characterList.data
+                    if (_syncState.value !is SyncState.Success) {
+                        _syncState.value = SyncState.Success("Personajes cargados")
                     }
-                    is UiState.Error -> {
-                        crashlytics.recordException(Exception(result.message))
-                        _databaseEvent.emit(DatabaseEvent.Error(result.message))
-                        _databaseState.value = _databaseState.value.copy(errorMessage = result.message)
-                    }
-                    else -> {}
+                } else {
+                    _syncState.value = SyncState.Error(Exception("Error al obtener personajes"))
                 }
             } catch (e: Exception) {
-                handleError(e)
-            } finally {
-                _databaseState.value = _databaseState.value.copy(
-                    isLoading = false,
-                    lastUpdated = System.currentTimeMillis()
-                )
+                _syncState.value = SyncState.Error(e)
             }
-        }
-    }
-
-    // Operaciones de Personajes
-    fun addCharacter(character: CharacterModel) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val characterMap = mapOf(
-                    "id" to character.id,
-                    "episode_id" to character.episode_id,
-                    "name" to character.name,
-                    "status" to character.status,
-                    "species" to character.species,
-                    "imageUrl" to character.imageUrl
-                )
-                val result = firestoreService.addCharacter(characterMap)
-                _uiState.value = UiState.Success(result)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    fun updateCharacter(characterId: String, character: Map<String, Any>) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.updateCharacter(characterId, character)
-                _uiState.value = UiState.Success(result)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
+            _isLoading.value = false
         }
     }
 
     fun deleteCharacter(characterId: String) {
+        _isLoading.value = true
         viewModelScope.launch {
             try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.deleteCharacter(characterId)
-                _uiState.value = UiState.Success(result)
+                firestoreService.deleteCharacter(characterId)
+                _syncState.value = SyncState.Success("Personaje eliminado")
+                getCharacters()
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
+                _syncState.value = SyncState.Error(e)
             }
+            _isLoading.value = false
         }
     }
 
-    fun getCharacter(characterId: String) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.getCharacterById(characterId)
-                _uiState.value = result
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    fun getAllCharacters() {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.getCharacters()
-                _uiState.value = result
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    // Operaciones de Episodios
-    fun addEpisode(episode: Map<String, Any>) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.addEpisode(episode)
-                _uiState.value = UiState.Success(result)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    fun updateEpisode(episodeId: String, episode: Map<String, Any>) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.updateEpisode(episodeId, episode)
-                _uiState.value = UiState.Success(result)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    fun getEpisode(episodeId: String) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.getEpisodeById(episodeId)
-                _uiState.value = UiState.Success(result)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    fun getAllEpisodes() {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.getEpisodes()
-                _uiState.value = UiState.Success(result)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    // Operaciones de relación Personaje-Episodio
-    fun addCharacterToEpisode(characterId: String, episodeId: String) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.addCharacterToEpisode(characterId, episodeId)
-                _uiState.value = result
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    fun removeCharacterFromEpisode(characterId: String, episodeId: String) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.removeCharacterFromEpisode(characterId, episodeId)
-                _uiState.value = result
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    fun getCharactersByEpisode(episodeId: String) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.getCharactersByEpisodeId(episodeId)
-                _uiState.value = UiState.Success(result)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    fun deleteEpisode(episodeId: String) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val result = firestoreService.deleteEpisode(episodeId)
-                _uiState.value = result
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Error desconocido")
-            }
-        }
-    }
-
-    private fun handleError(e: Exception) {
-        crashlytics.recordException(e)
-        viewModelScope.launch {
-            _databaseEvent.emit(DatabaseEvent.Error(e.message ?: "Error desconocido"))
-            _databaseState.value = _databaseState.value.copy(
-                errorMessage = e.message,
-                isLoading = false
-            )
-        }
-    }
-
-    fun getLastOperation(): String = _databaseState.value.lastOperation
-
-    fun getCachedOperation(operationKey: String): Any? {
-        val timestamp = operationTimestamps[operationKey] ?: return null
-        return if (System.currentTimeMillis() - timestamp < cacheValidityDuration) {
-            operationCache[operationKey]
-        } else {
-            operationCache.remove(operationKey)
-            operationTimestamps.remove(operationKey)
+    suspend fun getCharacterById(characterId: String): CharacterModel? {
+        return try {
+            firestoreService.getCharacterById(characterId)
+        } catch (e: Exception) {
             null
         }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        currentJob?.cancel()
-        operationCache.clear()
-        operationTimestamps.clear()
+    // Actualizar un personaje existente
+    suspend fun updateCharacter(character: CharacterModel): Boolean {
+        return try {
+            firestoreService.updateCharacter(character.id, character.toMap())
+            _syncState.value = SyncState.Success("Personaje actualizado")
+            getCharacters() // Recargar la lista después de la actualización
+            true
+        } catch (e: Exception) {
+            _syncState.value = SyncState.Error(e)
+            false
+        }
     }
-} 
+    suspend fun updateEpisode(episode: EpisodeModel): Boolean {
+        return try {
+            firestoreService.updateEpisode(episode.id, episode.toMap())
+            _syncState.value = SyncState.Success("Episodio actualizado")
+            getEpisodes() // Recargar la lista después de la actualización
+            true
+        } catch (e: Exception) {
+            _syncState.value = SyncState.Error(e)
+            false
+        }
+    }
+
+    suspend fun addEpisode(episode: EpisodeModel): Boolean {
+        return try {
+            _isLoading.value = true
+            firestoreService.addEpisode(episode.toMap()) // Usa FirestoreService
+            _syncState.value = SyncState.Success("Episodio agregado")
+            getEpisodes() // Recargar lista
+            _isLoading.value = false
+            true // Si todo funciona, devuelve true
+        } catch (e: Exception) {
+            _syncState.value = SyncState.Error(e)
+            _isLoading.value = false
+            false // Si hay un error, devuelve false
+        }
+    }
+
+
+    fun getEpisodes() {
+        _isLoading.value = true
+        viewModelScope.launch {
+            try {
+                val episodeList = firestoreService.getEpisodes()
+                if (episodeList is UiState.Success) {
+                    _episodes.value = episodeList.data
+                    _syncState.value = SyncState.Success("Episodios cargados")
+                } else {
+                    _syncState.value = SyncState.Error(Exception("Error al obtener episodios"))
+                }
+            } catch (e: Exception) {
+                _syncState.value = SyncState.Error(e)
+            }
+            _isLoading.value = false
+        }
+    }
+
+    fun deleteEpisode(episodeId: String) {
+        _isLoading.value = true
+        viewModelScope.launch {
+            try {
+                firestoreService.deleteEpisode(episodeId)
+                _syncState.value = SyncState.Success("Episodio eliminado")
+                getEpisodes()
+            } catch (e: Exception) {
+                _syncState.value = SyncState.Error(e)
+            }
+            _isLoading.value = false
+        }
+    }
+
+    fun getCharactersByEpisodeId(episodeId: String) {
+        _isLoading.value = true
+        viewModelScope.launch {
+            try {
+                val characterList = firestoreService.getCharactersByEpisodeId(episodeId)
+                if (characterList is UiState.Success) {
+                    _characters.value = characterList.data
+                    _syncState.value = SyncState.Success("Personajes del episodio cargados")
+                } else {
+                    _syncState.value = SyncState.Error(Exception("Error al obtener personajes del episodio"))
+                }
+            } catch (e: Exception) {
+                _syncState.value = SyncState.Error(e)
+            }
+            _isLoading.value = false
+        }
+    }
+
+
+    suspend fun getEpisodeById(episodeId: String): EpisodeModel? {
+        return try {
+            firestoreService.getEpisodeById(episodeId)
+        } catch (e: Exception) {
+            null
+        }
+    }
+}

@@ -49,12 +49,9 @@ fun FilterScreen(navController: NavHostController) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        authViewModel.signOut()
                         showLogoutDialog = false
-                        navController.navigate("login") {
-                            popUpTo(0) { inclusive = true }
-                        }
-                        Toast.makeText(context, "Sesión cerrada", Toast.LENGTH_SHORT).show()
+                        authViewModel.signOut()
+                        navController.navigate("login")
                     }
                 ) {
                     Text("Sí")
@@ -68,7 +65,6 @@ fun FilterScreen(navController: NavHostController) {
         )
     }
 }
-
 /**
  * Contenido principal de la pantalla de filtros
  */
@@ -81,12 +77,12 @@ private fun FilterScreenContent(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         BackgroundImage()
-        
+
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         "Menu",
                         style = MaterialTheme.typography.titleLarge.copy(
@@ -108,7 +104,7 @@ private fun FilterScreenContent(
                     containerColor = Color.White.copy(alpha = 0.9f)
                 )
             )
-            
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
