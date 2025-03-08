@@ -37,241 +37,314 @@ import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModelFactory
 @Composable
 fun DatabaseScreenEpisodio(
     navController: NavHostController,
-
 ) {
     val firestoreService = FirestoreService()
     val viewModel: DatabaseViewModel = viewModel(factory = DatabaseViewModelFactory(firestoreService))
     val episodes by viewModel.episodes.observeAsState(emptyList())
-    val isLoading by viewModel.isLoading.observeAsState(false)
+    val characters by viewModel.characters.observeAsState(emptyList())
+    val isLoading by viewModel.isLoading.observeAsState(true)
     val syncState by viewModel.syncState.observeAsState()
+    var hasShownMessage by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(viewModel.episodes.value) {
-        if (viewModel.episodes.value.isNullOrEmpty()) {
-            viewModel.getEpisodes()
+    // Cargar episodios y personajes al inicio
+    LaunchedEffect(Unit) {
+        viewModel.getEpisodes()
+        viewModel.getCharacters()
+    }
+
+    // Manejar estados de sincronización solo una vez
+    LaunchedEffect(syncState, isLoading) {
+        if (!hasShownMessage && !isLoading && episodes.isNotEmpty()) {
+            when (syncState) {
+                is DatabaseViewModel.SyncState.Success -> {
+                    snackbarHostState.showSnackbar("Datos cargados correctamente")
+                    hasShownMessage = true
+                }
+                is DatabaseViewModel.SyncState.Error -> {
+                    snackbarHostState.showSnackbar("Error al cargar los datos")
+                    hasShownMessage = true
+                }
+                else -> {}
+            }
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(id = R.drawable.imagen_fondo),
-            contentDescription = "Fondo",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            alpha = 0.3f
-        )
-
-        Column(modifier = Modifier.fillMaxSize()) {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Episodios",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.Black
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            Icons.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = Color.Black
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.getEpisodes() }) {
-                        Icon(
-                            Icons.Filled.Refresh,
-                            contentDescription = "Recargar",
-                            tint = Color.Black
-                        )
-                    }
-                    IconButton(onClick = { navController.navigate("agregarEpisodioScreen") }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Agregar", tint = Color.Black)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White.copy(alpha = 0.9f))
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.imagen_fondo),
+                contentDescription = "Fondo",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                alpha = 0.3f
             )
 
-            when {
-                isLoading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
+            Column(modifier = Modifier.fillMaxSize()) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Episodios",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.Black
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                Icons.Filled.ArrowBack,
+                                contentDescription = "Volver",
+                                tint = Color.Black
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { 
+                            viewModel.getEpisodes()
+                        }) {
+                            Icon(
+                                Icons.Filled.Refresh,
+                                contentDescription = "Recargar",
+                                tint = Color.Black
+                            )
+                        }
+                        IconButton(onClick = { navController.navigate("agregarEpisodioScreen") }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Agregar", tint = Color.Black)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White.copy(alpha = 0.9f))
+                )
 
-                episodes.isNotEmpty() -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                    ) {
-                        items(episodes) { episode ->
-                            EpisodeCard(navController, episode, onDelete = {
-                                viewModel.deleteEpisode(episode.id)
-                            })
+                when {
+                    isLoading && episodes.isEmpty() -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
                         }
                     }
-                }
 
-                else -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No hay episodios disponibles", color = Color.Black)
+                    episodes.isNotEmpty() -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                        ) {
+                            items(episodes) { episode ->
+                                key(episode.id) {
+                                    EpisodeCard(
+                                        navController = navController,
+                                        episode = episode,
+                                        onDelete = {
+                                            viewModel.deleteEpisode(episode.id)
+                                        },
+                                        viewModel = viewModel
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    else -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No hay episodios disponibles", color = Color.Black)
+                        }
                     }
                 }
             }
 
-            syncState?.let { state ->
-                when (state) {
-                    is DatabaseViewModel.SyncState.Success -> {
-                        Toast.makeText(LocalContext.current, state.message, Toast.LENGTH_SHORT)
-                            .show()
-                    }
-
-                    is DatabaseViewModel.SyncState.Error -> {
-                        Toast.makeText(
-                            LocalContext.current,
-                            state.exception.message,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-
-                    else -> {}
+            if (isLoading && episodes.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
                 }
             }
         }
     }
 }
-    @Composable
-    private fun EpisodeCard(
-        navController: NavHostController,
-        episode: EpisodeModel,
-        onDelete: () -> Unit
+
+@Composable
+private fun EpisodeCard(
+    navController: NavHostController,
+    episode: EpisodeModel,
+    onDelete: () -> Unit,
+    viewModel: DatabaseViewModel
+) {
+    val characters by viewModel.characters.observeAsState(emptyList())
+
+    val episodeCharacters = remember(characters, episode.id) {
+        characters.filter { it.episode_id == episode.id }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(16.dp)
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.95f)
+        ),
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Card(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp)
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(16.dp)
-                ),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White.copy(alpha = 0.95f)
-            ),
-            shape = RoundedCornerShape(16.dp)
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            ) {
+                AsyncImage(
+                    model = episode.imageUrl.takeIf { it.isNotEmpty() }
+                        ?: R.drawable.imagen_fondo,
+                    contentDescription = "Imagen del episodio",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    error = painterResource(id = R.drawable.imagen_fondo)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.7f)
+                                )
+                            )
+                        )
+                )
+
+                Text(
+                    episode.name,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(16.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
+                InfoRow(
+                    label = "Fecha:",
+                    value = episode.date
+                )
+
+                InfoRow(
+                    label = "Duración:",
+                    value = episode.duration
+                )
+
+                InfoRow(
+                    label = "Personajes:",
+                    value = episodeCharacters.size.toString()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    AsyncImage(
-                        model = episode.imageUrl.takeIf { it.isNotEmpty() }
-                            ?: R.drawable.imagen_fondo,
-                        contentDescription = "Imagen del episodio",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        error = painterResource(id = R.drawable.imagen_fondo)
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.Black.copy(alpha = 0.7f)
-                                    )
-                                )
+                    Button(
+                        onClick = { navController.navigate("verPersonajesEpisodio/${episode.id}") },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Green.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth(0.8f)
+                    ) {
+                        Text(
+                            "Ver Personajes (${episodeCharacters.size})",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.Bold
                             )
-                    )
-
-                    Text(
-                        episode.name,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                        )
+                    }
                 }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    InfoRow(
-                        label = "Fecha:",
-                        value = episode.date
-                    )
-
-                    InfoRow(
-                        label = "Duración:",
-                        value = episode.duration
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                    Button(
+                        onClick = { navController.navigate("modificarEpisodioScreen/${episode.id}") },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Blue.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).padding(end = 4.dp)
                     ) {
-                        Button(
-                            onClick = { navController.navigate("modificarEpisodioScreen/${episode.id}") },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Blue.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Modificar")
-                        }
+                        Text("Modificar")
+                    }
 
-                        Button(
-                            onClick = onDelete,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Red.copy(alpha = 0.8f)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Eliminar")
-                        }
+                    Button(
+                        onClick = onDelete,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Red.copy(alpha = 0.8f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).padding(start = 4.dp)
+                    ) {
+                        Text("Eliminar")
                     }
                 }
             }
         }
     }
+}
 
-    @Composable
-    private fun InfoRow(
-        label: String,
-        value: String
+@Composable
+private fun InfoRow(
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color.Gray,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(100.dp)
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color.DarkGray
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.Gray,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.width(100.dp)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.DarkGray
+        )
     }
+}

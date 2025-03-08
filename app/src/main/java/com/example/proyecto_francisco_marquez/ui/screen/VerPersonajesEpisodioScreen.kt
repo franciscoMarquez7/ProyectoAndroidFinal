@@ -33,7 +33,7 @@ import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModel
 fun VerPersonajesEpisodioScreen(
     navController: NavHostController,
     episodeId: String,
-    viewModel: DatabaseViewModel = viewModel()
+    viewModel: DatabaseViewModel
 ) {
     val characters by viewModel.characters.observeAsState(emptyList())
     val isLoading by viewModel.isLoading.observeAsState(false)
@@ -128,7 +128,7 @@ fun VerPersonajesEpisodioScreen(
                                 .fillMaxSize()
                                 .padding(16.dp)
                         ) {
-                            items(characters) { personaje ->
+                            items(characters.filter { it.episode_id == episodeId }) { personaje ->
                                 PersonajeCard(personaje = personaje)
                                 Spacer(modifier = Modifier.height(8.dp))
                             }

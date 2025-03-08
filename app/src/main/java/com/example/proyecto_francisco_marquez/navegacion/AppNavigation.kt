@@ -8,10 +8,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.proyecto_francisco_marquez.data.FirestoreService
 import com.example.proyecto_francisco_marquez.ui.screen.*
 import com.example.proyecto_francisco_marquez.viewmodel.AuthViewModel
 import com.example.proyecto_francisco_marquez.ui.screen.FilterScreen
-
+import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModel
+import com.example.proyecto_francisco_marquez.viewmodel.DatabaseViewModelFactory
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
@@ -125,6 +127,23 @@ fun AppNavigation(navController: NavHostController) {
             ModificarEpisodioScreen(
                 navController = navController,
                 episodeId = episodeId
+            )
+        }
+
+        composable(
+            "verPersonajesEpisodio/{episodeId}",
+            arguments = listOf(
+                navArgument("episodeId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val episodeId = backStackEntry.arguments?.getString("episodeId") ?: return@composable
+            val viewModel: DatabaseViewModel = viewModel(
+                factory = DatabaseViewModelFactory(FirestoreService())
+            )
+            VerPersonajesEpisodioScreen(
+                navController = navController,
+                episodeId = episodeId,
+                viewModel = viewModel
             )
         }
     }

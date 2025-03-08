@@ -43,10 +43,39 @@ fun DatabaseScreenPersonaje(
     val characters by viewModel.characters.observeAsState(initial = emptyList())
     val isLoading by viewModel.isLoading.observeAsState(initial = false)
     val syncState by viewModel.syncState.observeAsState()
+    val context = LocalContext.current
+    var hasShownToast by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel.characters.value) {
         if (viewModel.characters.value.isNullOrEmpty()) {
             viewModel.getCharacters()
+        }
+    }
+
+    // Manejar estados de sincronización solo una vez
+    LaunchedEffect(syncState) {
+        if (!hasShownToast && !isLoading) {
+            when (syncState) {
+                is DatabaseViewModel.SyncState.Success -> {
+                    Toast.makeText(context, "Datos cargados correctamente", Toast.LENGTH_SHORT)
+                        .apply { 
+                            setGravity(android.view.Gravity.CENTER, 0, 0)
+                        }
+                        .show()
+                    hasShownToast = true
+                }
+                is DatabaseViewModel.SyncState.Error -> {
+                    Toast.makeText(
+                        context,
+                        "Error al cargar los datos",
+                        Toast.LENGTH_SHORT
+                    ).apply { 
+                        setGravity(android.view.Gravity.CENTER, 0, 0)
+                    }.show()
+                    hasShownToast = true
+                }
+                else -> {}
+            }
         }
     }
 
@@ -105,18 +134,6 @@ fun DatabaseScreenPersonaje(
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No hay personajes disponibles", color = Color.Black)
                     }
-                }
-            }
-
-            syncState?.let { state ->
-                when (state) {
-                    is DatabaseViewModel.SyncState.Success -> {
-                        Toast.makeText(LocalContext.current, state.message, Toast.LENGTH_SHORT).show()
-                    }
-                    is DatabaseViewModel.SyncState.Error -> {
-                        Toast.makeText(LocalContext.current, state.exception.message, Toast.LENGTH_SHORT).show()
-                    }
-                    else -> {}
                 }
             }
         }
