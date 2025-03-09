@@ -25,6 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextAlign
+import android.util.Log
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
 fun LoginScreen(
@@ -32,38 +36,62 @@ fun LoginScreen(
     authViewModel: AuthViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val user by authViewModel.userState.collectAsState()
-    val scope = rememberCoroutineScope()
-
+    val userState by authViewModel.userState.collectAsState()
+    var isLoading by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = InicioConGoogle()
+    val googleSignLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result != null) {
-            isLoading = true
-            authViewModel.loginWithGoogle(result) { success, _ ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                isLoading = true
+                authViewModel.handleGoogleSignInResult(task)
+            } catch (e: Exception) {
                 isLoading = false
-                if (success) {
-                    scope.launch {
-                        navController.navigate("filter") {
-                            popUpTo(navController.graph.startDestinationRoute ?: "login") { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    }
+                Log.e("LoginScreen", "Error en inicio de sesión con Google: ${e.message}")
+                Toast.makeText(
+                    context,
+                    e.message ?: "Error desconocido en inicio de sesión con Google",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        } else {
+            Log.d("LoginScreen", "Inicio de sesión con Google cancelado por el usuario")
+            Toast.makeText(
+                context,
+                "Inicio de sesión cancelado",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    LaunchedEffect(userState) {
+        if (userState != null) {
+            try {
+                Log.d("LoginScreen", "Usuario autenticado, navegando a filter")
+                navController.navigate("filter") {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                    launchSingleTop = true
                 }
+            } catch (e: Exception) {
+                Log.e("LoginScreen", "Error en navegación: ${e.message}")
+                Toast.makeText(
+                    context,
+                    "Error al navegar: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                isLoading = false
             }
         }
     }
 
-    LaunchedEffect(user) {
-        if (user != null) {
-            navController.navigate("filter") {
-                popUpTo(navController.graph.startDestinationRoute ?: "login") { inclusive = true }
-                launchSingleTop = true
-            }
+    DisposableEffect(Unit) {
+        onDispose {
+            isLoading = false
         }
     }
 
@@ -124,22 +152,14 @@ fun LoginScreen(
                 onClick = {
                     if (email.isNotBlank() && password.isNotBlank()) {
                         isLoading = true
-                        scope.launch {
-                            authViewModel.signIn(
-                                email = email.trim(),
-                                password = password,
-                                onSuccess = {
-                                    isLoading = false
-                                    navController.navigate("filter") {
-                                        popUpTo(navController.graph.startDestinationRoute ?: "login") { inclusive = true }
-                                        launchSingleTop = true
-                                    }
-                                },
-                                onError = { 
-                                    isLoading = false
-                                }
-                            )
-                        }
+                        authViewModel.signIn(
+                            email = email.trim(),
+                            password = password,
+                            onSuccess = {},
+                            onError = { 
+                                isLoading = false
+                            }
+                        )
                     }
                 },
                 enabled = !isLoading,
@@ -161,25 +181,49 @@ fun LoginScreen(
             }
 
             Button(
-                onClick = { launcher.launch(Unit) },
+                onClick = { 
+                    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken("262603989783-v701ebi3au08lifp0m457eao9l7rqi3t.apps.googleusercontent.com")
+                        .requestEmail()
+                        .build()
+                    val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                    googleSignInClient.signOut().addOnCompleteListener {
+                        googleSignLauncher.launch(googleSignInClient.signInIntent)
+                    }
+                },
+                enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.DarkGray
+                    containerColor = Color.DarkGray,
+                    disabledContainerColor = Color.Gray
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Continuar con Google", fontSize = 16.sp, color = Color.White)
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White
+                    )
+                } else {
+                    Text("Continuar con Google", fontSize = 16.sp, color = Color.White)
+                }
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TextButton(onClick = { navController.navigate("register") }) {
+                TextButton(
+                    onClick = { navController.navigate("register") },
+                    enabled = !isLoading
+                ) {
                     Text("Registrarse", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
 
-                TextButton(onClick = { navController.navigate("forgotPassword") }) {
+                TextButton(
+                    onClick = { navController.navigate("forgotPassword") },
+                    enabled = !isLoading
+                ) {
                     Text("¿Olvidaste tu contraseña?", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }

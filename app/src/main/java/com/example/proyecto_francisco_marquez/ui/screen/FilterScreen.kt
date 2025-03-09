@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import kotlinx.coroutines.launch
+import android.util.Log
 
 /**
  * Pantalla de filtros que permite filtrar personajes por estado y acceder a la base de datos
@@ -34,15 +35,16 @@ import kotlinx.coroutines.launch
 fun FilterScreen(navController: NavHostController) {
     val authViewModel: AuthViewModel = viewModel()
     var showLogoutDialog by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val userState by authViewModel.userState.collectAsState()
 
     LaunchedEffect(userState) {
         if (userState == null) {
-            navController.navigate("login") {
-                popUpTo("filter") { inclusive = true }
-                launchSingleTop = true
+            try {
+                navController.navigate("login") {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                }
+            } catch (e: Exception) {
+                Log.e("FilterScreen", "Error en navegación: ${e.message}")
             }
         }
     }

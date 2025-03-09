@@ -14,11 +14,27 @@
       },
       "oauth_client": [
         {
+          "client_id": "262603989783-7v2iakq3flarq9qh56cro6egrd5d7bag.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.proyecto_francisco_marquez",
+            "certificate_hash": "65215adecf161849ae47991bb5f0fa142b1d0ee6"
+          }
+        },
+        {
           "client_id": "262603989783-faqvf1fdag5otvj9dmr84224mu2jr41g.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.proyecto_francisco_marquez",
             "certificate_hash": "662a289e799625240f8015f7a9e3f19fffc89d19"
+          }
+        },
+        {
+          "client_id": "262603989783-sc55glfa3bpqrj61aambbnq0o0953ah9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.proyecto_francisco_marquez",
+            "certificate_hash": "ac5c536b704752065de05f36d6fe326523405943"
           }
         },
         {
