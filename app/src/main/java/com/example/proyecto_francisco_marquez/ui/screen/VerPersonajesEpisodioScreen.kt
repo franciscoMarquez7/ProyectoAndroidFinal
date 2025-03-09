@@ -38,10 +38,30 @@ fun VerPersonajesEpisodioScreen(
     val characters by viewModel.characters.observeAsState(emptyList())
     val isLoading by viewModel.isLoading.observeAsState(false)
     val syncState by viewModel.syncState.observeAsState()
-    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(episodeId) {
         viewModel.getCharactersByEpisodeId(episodeId)
+    }
+
+    // Manejar estados de sincronización
+    LaunchedEffect(syncState) {
+        when (syncState) {
+            is DatabaseViewModel.SyncState.Success -> {
+                snackbarHostState.showSnackbar(
+                    message = (syncState as DatabaseViewModel.SyncState.Success).message,
+                    duration = SnackbarDuration.Short
+                )
+            }
+            is DatabaseViewModel.SyncState.Error -> {
+                snackbarHostState.showSnackbar(
+                    message = (syncState as DatabaseViewModel.SyncState.Error).exception.message ?: "Error desconocido",
+                    duration = SnackbarDuration.Short
+                )
+            }
+            else -> {}
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -92,7 +112,8 @@ fun VerPersonajesEpisodioScreen(
                     )
                 )
             },
-            containerColor = Color.Transparent
+            containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbarHostState) }
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -134,18 +155,6 @@ fun VerPersonajesEpisodioScreen(
                             }
                         }
                     }
-                }
-            }
-
-            syncState?.let { state ->
-                when (state) {
-                    is DatabaseViewModel.SyncState.Success -> {
-                        Toast.makeText(context, state.message, Toast.LENGTH_SHORT).show()
-                    }
-                    is DatabaseViewModel.SyncState.Error -> {
-                        Toast.makeText(context, state.exception.message, Toast.LENGTH_SHORT).show()
-                    }
-                    else -> {}
                 }
             }
         }

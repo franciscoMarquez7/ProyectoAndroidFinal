@@ -44,9 +44,8 @@ fun DatabaseScreenEpisodio(
     val characters by viewModel.characters.observeAsState(emptyList())
     val isLoading by viewModel.isLoading.observeAsState(true)
     val syncState by viewModel.syncState.observeAsState()
-    var hasShownMessage by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Cargar episodios y personajes al inicio
     LaunchedEffect(Unit) {
@@ -54,17 +53,21 @@ fun DatabaseScreenEpisodio(
         viewModel.getCharacters()
     }
 
-    // Manejar estados de sincronización solo una vez
+    // Manejar estados de sincronización
     LaunchedEffect(syncState, isLoading) {
-        if (!hasShownMessage && !isLoading && episodes.isNotEmpty()) {
+        if (!isLoading && episodes.isNotEmpty()) {
             when (syncState) {
                 is DatabaseViewModel.SyncState.Success -> {
-                    snackbarHostState.showSnackbar("Datos cargados correctamente")
-                    hasShownMessage = true
+                    snackbarHostState.showSnackbar(
+                        message = "Datos cargados correctamente",
+                        duration = SnackbarDuration.Short
+                    )
                 }
                 is DatabaseViewModel.SyncState.Error -> {
-                    snackbarHostState.showSnackbar("Error al cargar los datos")
-                    hasShownMessage = true
+                    snackbarHostState.showSnackbar(
+                        message = "Error al cargar los datos",
+                        duration = SnackbarDuration.Short
+                    )
                 }
                 else -> {}
             }

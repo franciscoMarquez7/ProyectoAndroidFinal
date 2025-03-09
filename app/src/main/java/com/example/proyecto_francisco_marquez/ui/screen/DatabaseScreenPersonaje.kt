@@ -43,8 +43,9 @@ fun DatabaseScreenPersonaje(
     val characters by viewModel.characters.observeAsState(initial = emptyList())
     val isLoading by viewModel.isLoading.observeAsState(initial = false)
     val syncState by viewModel.syncState.observeAsState()
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    var hasShownToast by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel.characters.value) {
         if (viewModel.characters.value.isNullOrEmpty()) {
@@ -52,30 +53,22 @@ fun DatabaseScreenPersonaje(
         }
     }
 
-    // Manejar estados de sincronización solo una vez
+    // Manejar estados de sincronización
     LaunchedEffect(syncState) {
-        if (!hasShownToast && !isLoading) {
-            when (syncState) {
-                is DatabaseViewModel.SyncState.Success -> {
-                    Toast.makeText(context, "Datos cargados correctamente", Toast.LENGTH_SHORT)
-                        .apply { 
-                            setGravity(android.view.Gravity.CENTER, 0, 0)
-                        }
-                        .show()
-                    hasShownToast = true
-                }
-                is DatabaseViewModel.SyncState.Error -> {
-                    Toast.makeText(
-                        context,
-                        "Error al cargar los datos",
-                        Toast.LENGTH_SHORT
-                    ).apply { 
-                        setGravity(android.view.Gravity.CENTER, 0, 0)
-                    }.show()
-                    hasShownToast = true
-                }
-                else -> {}
+        when (syncState) {
+            is DatabaseViewModel.SyncState.Success -> {
+                snackbarHostState.showSnackbar(
+                    message = "Datos cargados correctamente",
+                    duration = SnackbarDuration.Short
+                )
             }
+            is DatabaseViewModel.SyncState.Error -> {
+                snackbarHostState.showSnackbar(
+                    message = "Error al cargar los datos",
+                    duration = SnackbarDuration.Short
+                )
+            }
+            else -> {}
         }
     }
 
